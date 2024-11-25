@@ -19,3 +19,8 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+.gm-style > div:first-child {
+  cursor: crosshair !important;
+}
