@@ -1,6 +1,5 @@
 "use client";
-import React, { useState, useEffect, memo } from "react";
-import { Map } from "../components/Map";
+import React, { useState, memo } from "react";
 import { getDistance } from "geolib";
 import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
 
