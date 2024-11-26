@@ -1,147 +1,222 @@
 "use client";
-import React, { useState, memo } from "react";
-import { getDistance } from "geolib";
-import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
+import React, { useState, memo, useEffect, useMemo, useCallback } from 'react'
+import { getDistance } from 'geolib'
+import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api'
+import { demoHolePositions } from '../constants/demo-data'
+import { Position } from '../types/position'
+import { useElevationApi } from '../apis/useElevationApi'
+import { useWeatherApi } from '../apis/useWeatherApi'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-type Position = { lat: number; lng: number };
 const KIKKA_TOGE_POSITION: Position = {
-    lat: 34.88102403391901,
-    lng: 134.03095463150288,
-};
-
-const HOLES: Position[] = [
-    { lat: 34.88100118013464, lng: 134.03192399857866 },
-    { lat: 34.88034951478132, lng: 134.03124696459145 },
-    { lat: 34.88078852701115, lng: 134.03095751859354 },
-    { lat: 34.87978516895087, lng: 134.0304712066222 },
-    { lat: 34.87946097198282, lng: 134.03014785546623 },
-    { lat: 34.87736965125368, lng: 134.0290123759259 },
-    { lat: 34.878349755199736, lng: 134.0298512800275 },
-    { lat: 34.87777896265992, lng: 134.0283502378486 },
-    { lat: 34.879147608623974, lng: 134.02974230432733 },
-    { lat: 34.878485292442036, lng: 134.02837974214776 },
-    { lat: 34.87937644752607, lng: 134.02866137409433 },
-    { lat: 34.879884731654414, lng: 134.02886790418847 },
-];
+  lat: 34.88102403391901,
+  lng: 134.03095463150288,
+  elevation: null,
+  windDirection: null,
+  windSpeed: null
+}
 
 const containerStyle = {
-    width: "100vw",
-    height: "100vh",
-    cursor: "crosshair !important",
-};
+  width: '100vw',
+  height: '100vh'
+  // cursor: 'crosshair !important'
+}
 export const MapPage = memo(() => {
-    const [currentPosition, setCurrentPosition] = useState<Position | null>(KIKKA_TOGE_POSITION);
-    const [pinPositions, setPinPositions] = useState<Position[]>(HOLES);
-    const [clickPosition, setClickPosition] = useState<Position | null>(null);
+  const [mode, setMode] = useState<null | 'pin' | 'distance'>(null)
+  const [currentPosition, setCurrentPosition] = useState<Position | null>(KIKKA_TOGE_POSITION)
+  const [pinPositions, setPinPositions] = useState<Position[]>(demoHolePositions)
+  const [holeNumber, setHoleNumber] = useState<number>(1) // 現在のホール番号
 
-    // useEffect(() => {
-    //     if (!navigator.geolocation) {
-    //         alert("位置情報サービスが利用できません");
-    //         return;
-    //     }
+  const { getElevation } = useElevationApi()
+  const { getWeather } = useWeatherApi()
 
-    //     navigator.geolocation.getCurrentPosition(
-    //         (position) => {
-    //             setCurrentPosition({
-    //                 lat: position.coords.latitude,
-    //                 lng: position.coords.longitude,
-    //             });
-    //         },
-    //         (error) => {
-    //             console.error("現在地の取得に失敗しました:", error);
-    //         }
-    //     );
-    // }, []);
+  const handleUpdatePinPosition = async (pinNumber: number, position: Position) => {
+    const elevationResult = await getElevation(position)
+    const elevation = elevationResult.results?.[0].elevation
 
-    const calculateDistance = (): number | null => {
-        if (currentPosition && pinPositions.length > 0) {
-            const distanceInMeters = getDistance(currentPosition, pinPositions[0]);
-            const yard = distanceInMeters / 0.9144; // ヤード単位に変換
-            return Math.round(yard);
+    const weatherResult = await getWeather(position)
+    const windDirection = weatherResult.wind.deg
+    const windSpeed = weatherResult.wind.speed
+
+    setPinPositions(
+      pinPositions.map((p, i) => {
+        if (i === pinNumber - 1) {
+          return { ...position, elevation, windDirection, windSpeed }
         }
-        return null;
-    };
+        return p
+      })
+    )
+  }
 
-    const onMapClick = (position: Position) => {
-        setClickPosition(position);
-        setPinPositions([...pinPositions, position]);
-    };
+  // useEffect(() => {
+  //     if (!navigator.geolocation) {
+  //         alert("位置情報サービスが利用できません");
+  //         return;
+  //     }
 
-    const handleMapClick = (event: google.maps.MapMouseEvent) => {
-        if (event.latLng && onMapClick) {
-            const lat = event.latLng.lat();
-            const lng = event.latLng.lng();
-            onMapClick({ lat, lng });
-        }
-    };
+  //     navigator.geolocation.getCurrentPosition(
+  //         (position) => {
+  //             setCurrentPosition({
+  //                 lat: position.coords.latitude,
+  //                 lng: position.coords.longitude,
+  //             });
+  //         },
+  //         (error) => {
+  //             console.error("現在地の取得に失敗しました:", error);
+  //         }
+  //     );
+  // }, []);
 
-    return (
-        <div className="relative !cursor-crosshair">
-            <div className="absolute top-16 left-4 bottom-4 z-50">
-                <div className="bg-white rounded-md w-[300px] h-[100%]">
-                    <div className="p-4">
-                        <h2 className="text-lg font-bold">距離計算</h2>
-                        <p>
-                            距離: <span className="font-bold text-4xl">{calculateDistance()}</span> ヤード
-                        </p>
-                    </div>
+  const calculateDistance = useCallback((): number | null => {
+    if (currentPosition && pinPositions.length > 0) {
+      const distanceInMeters = getDistance(currentPosition, pinPositions[holeNumber - 1])
+      const yard = distanceInMeters / 0.9144 // ヤード単位に変換
+      return Math.round(yard)
+    }
+    return null
+  }, [currentPosition, pinPositions, holeNumber])
 
-                    {/* クリックしたピンの座標リスト */}
-                    <ul className="text-sm">
-                        {pinPositions.map((position, index) => (
-                            <li key={index}>
-                                {position.lat}, {position.lng}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
+  const onMapClick = (position: Position) => {
+    setPinPositions([...pinPositions, position])
+  }
 
-            <LoadScript googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""}>
-                <GoogleMap
-                    mapContainerStyle={containerStyle}
-                    center={KIKKA_TOGE_POSITION}
-                    zoom={17}
-                    onClick={handleMapClick}
-                    mapTypeId="satellite"
-                >
-                    {/* 現在地マーカー */}
-                    {currentPosition && (
-                        <Marker
-                            position={currentPosition}
-                            label="現在地"
-                            // icon={{
-                            //     path: google.maps.SymbolPath.CIRCLE, // マーカーの形状
-                            //     scale: 8, // マーカーの大きさ
-                            //     fillColor: "blue", // 塗りつぶしの色
-                            //     fillOpacity: 0.5, // 塗りつぶしの透明度
-                            //     strokeWeight: 2, // 枠線の太さ
-                            //     strokeColor: "white", // 枠線の色
-                            // }}
-                        />
-                    )}
-                    {/* ピン位置マーカー */}
-                    {pinPositions?.map((position, index) => (
-                        <Marker
-                            key={index}
-                            position={position}
-                            label={`${index + 1}`}
-                            onClick={() => {
-                                setPinPositions(pinPositions.filter((_, i) => i !== index));
-                            }}
-                            draggable
-                            // icon={{
-                            //     path: google.maps.SymbolPath.CIRCLE, // マーカーの形状
-                            //     scale: 8, // マーカーの大きさ
-                            //     fillColor: "yellow", // 塗りつぶしの色
-                            //     fillOpacity: 1, // 塗りつぶしの透明度
-                            //     strokeWeight: 2, // 枠線の太さ
-                            //     strokeColor: "white", // 枠線の色
-                            // }}
-                        />
-                    ))}
-                </GoogleMap>
-            </LoadScript>
+  const handleMapClick = async (event: google.maps.MapMouseEvent) => {
+    if (mode === 'pin' && event.latLng && onMapClick) {
+      const lat = event.latLng.lat()
+      const lng = event.latLng.lng()
+
+      const elevationResult = await getElevation({ lat, lng })
+      const elevation = elevationResult.results?.[0].elevation
+
+      const weatherResult = await getWeather({ lat, lng })
+      console.log(weatherResult)
+      const windDirection = weatherResult.wind?.deg
+      const windSpeed = weatherResult.wind?.speed
+
+      onMapClick({ lat, lng, elevation, windDirection, windSpeed })
+    }
+  }
+
+  useEffect(() => {
+    const mapElements = document.getElementsByClassName('gm-style')
+    if (mapElements.length > 0) {
+      mapElements[0].getElementsByTagName('div')[0].style.cursor = mode === 'pin' ? 'crosshair' : 'grab'
+    }
+  }, [mode])
+
+  return (
+    <div className='relative'>
+      <div className='absolute top-16 left-4 bottom-4 z-50'>
+        <div className='bg-white rounded-md w-[450px] h-[100%] p-2 overflow-y-scroll'>
+          {mode === null ? (
+            <button onClick={() => setMode(() => 'pin')}>ピン差しモードオン</button>
+          ) : (
+            <button onClick={() => setMode(() => null)}>ピン差しモードオフ</button>
+          )}
+          <div className='p-4'>
+            <h2 className='text-lg font-bold'>距離計算</h2>
+            <p>
+              距離: <span className='font-bold text-4xl'>{calculateDistance()?.toLocaleString()}</span> ヤード
+            </p>
+          </div>
+
+          <div className=''>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='w-[50px]'>No</TableHead>
+                  <TableHead className='w-[100px]'>緯度</TableHead>
+                  <TableHead className='w-[100px]'>経度</TableHead>
+                  <TableHead className='w-[150px]'>標高</TableHead>
+                  <TableHead className='w-[150px]'>風向き</TableHead>
+                  <TableHead className='w-[150px]'>風速</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pinPositions.map((position, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{position.lat.toFixed(5)}</TableCell>
+                    <TableCell>{position.lng.toFixed(5)}</TableCell>
+                    <TableCell>{position.elevation?.toFixed(2)}</TableCell>
+                    <TableCell>{getWindDirection(position.windDirection)}</TableCell>
+                    <TableCell>{position.windSpeed ? `${position.windSpeed} m/s` : ''}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
-    );
-});
+      </div>
+
+      <LoadScript googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}>
+        <GoogleMap
+          mapContainerStyle={containerStyle}
+          center={KIKKA_TOGE_POSITION}
+          zoom={17}
+          onClick={handleMapClick}
+          mapTypeId='satellite'
+        >
+          {/* 現在地マーカー */}
+          {currentPosition && (
+            <Marker
+              position={currentPosition}
+              label='現在地'
+              // icon={{
+              //     path: google.maps.SymbolPath.CIRCLE, // マーカーの形状
+              //     scale: 8, // マーカーの大きさ
+              //     fillColor: "blue", // 塗りつぶしの色
+              //     fillOpacity: 0.5, // 塗りつぶしの透明度
+              //     strokeWeight: 2, // 枠線の太さ
+              //     strokeColor: "white", // 枠線の色
+              // }}
+              draggable
+              onDragEnd={e => {
+                const lat = e.latLng?.lat()
+                const lng = e.latLng?.lng()
+
+                if (lat && lng) {
+                  setCurrentPosition({ lat, lng })
+                }
+              }}
+            />
+          )}
+          {/* ピン位置マーカー */}
+          {pinPositions?.map((position, index) => (
+            <Marker
+              key={index}
+              position={position}
+              label={`${index + 1}`}
+              onClick={() => {
+                handleUpdatePinPosition(index + 1, position)
+              }}
+              draggable
+              onDragEnd={e => {
+                const lat = e.latLng?.lat()
+                const lng = e.latLng?.lng()
+
+                if (lat && lng) {
+                  const newPinPositions = pinPositions.map((p, i) => {
+                    if (i === index) {
+                      return { lat, lng }
+                    }
+                    return p
+                  })
+                  handleUpdatePinPosition(index + 1, { lat, lng })
+                }
+              }}
+            />
+          ))}
+        </GoogleMap>
+      </LoadScript>
+    </div>
+  )
+})
+
+// 風向きの解釈関数
+const getWindDirection = (deg: number | null | undefined): string => {
+  if (deg === null || deg === undefined) return ''
+  const directions = ['北', '北東', '東', '南東', '南', '南西', '西', '北西']
+  const index = Math.round(deg / 45) % 8
+  return directions[index]
+}
