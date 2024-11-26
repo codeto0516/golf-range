@@ -1,5 +1,3 @@
-import { MapPage } from "../features/map/pages/MapPage";
-
-export default function Page() {
-    return <MapPage />;
+export default function Home() {
+    return <></>;
 }

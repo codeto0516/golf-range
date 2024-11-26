@@ -77,6 +77,26 @@ export const MapPage = memo(() => {
 
     return (
         <div className="relative !cursor-crosshair">
+            <div className="absolute top-16 left-4 bottom-4 z-50">
+                <div className="bg-white rounded-md w-[300px] h-[100%]">
+                    <div className="p-4">
+                        <h2 className="text-lg font-bold">距離計算</h2>
+                        <p>
+                            距離: <span className="font-bold text-4xl">{calculateDistance()}</span> ヤード
+                        </p>
+                    </div>
+
+                    {/* クリックしたピンの座標リスト */}
+                    <ul className="text-sm">
+                        {pinPositions.map((position, index) => (
+                            <li key={index}>
+                                {position.lat}, {position.lng}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+
             <LoadScript googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""}>
                 <GoogleMap
                     mapContainerStyle={containerStyle}
@@ -122,26 +142,6 @@ export const MapPage = memo(() => {
                     ))}
                 </GoogleMap>
             </LoadScript>
-
-            <div className="absolute top-16 left-4 bottom-4">
-                <div className="bg-white rounded-md w-[300px] h-[100%]">
-                    <div className="p-4">
-                        <h2 className="text-lg font-bold">距離計算</h2>
-                        <p>
-                            距離: <span className="font-bold text-4xl">{calculateDistance()}</span> ヤード
-                        </p>
-                    </div>
-
-                    {/* クリックしたピンの座標リスト */}
-                    <ul className="text-sm">
-                        {pinPositions.map((position, index) => (
-                            <li key={index}>
-                                {position.lat}, {position.lng}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
         </div>
     );
 });
